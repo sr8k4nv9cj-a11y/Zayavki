@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Эвак МСК — Учёт заявок</title>
+<style>
+  :root{
+    --bg:#0d1117;
+    --bg2:#151b23;
+    --card:#1a2129;
+    --border:#2a323d;
+    --amber:#f5a524;
+    --amber-dim:#8a6318;
+    --text:#e6e9ed;
+    --text-dim:#8b96a3;
+    --green:#3ecf8e;
+    --red:#e5484d;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:linear-gradient(180deg,var(--bg),var(--bg2));
+    color:var(--text);
+    min-height:100vh;
+    padding:16px;
+  }
+  .wrap{max-width:1100px;margin:0 auto;}
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  h1{
+    font-size:1.3rem;
+    margin:0;
+    letter-spacing:.3px;
+  }
+  h1 span{color:var(--amber);}
+  .status-pill{
+    font-size:.75rem;
+    color:var(--text-dim);
+    background:var(--card);
+    border:1px solid var(--border);
+    padding:4px 10px;
+    border-radius:999px;
+  }
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:16px;
+    margin-bottom:16px;
+  }
+  .form-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:10px;
+  }
+  label{
+    font-size:.72rem;
+    color:var(--text-dim);
+    display:block;
+    margin-bottom:4px;
+  }
+  input,select,textarea{
+    width:100%;
+    background:#0f1520;
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:8px;
+    padding:9px 10px;
+    font-size:.9rem;
+    outline:none;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--amber-dim);}
+  textarea{resize:vertical;min-height:40px;}
+  .add-btn{
+    margin-top:14px;
+    background:var(--amber);
+    color:#1a1200;
+    border:none;
+    font-weight:600;
+    padding:10px 18px;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:.9rem;
+  }
+  .add-btn:hover{background:#ffb845;}
+  .add-btn:disabled{opacity:.5;cursor:default;}
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:.83rem;
+  }
+  thead th{
+    text-align:left;
+    color:var(--text-dim);
+    font-weight:500;
+    padding:8px 8px;
+    border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+  tbody td{
+    padding:8px 8px;
+    border-bottom:1px solid var(--border);
+    vertical-align:top;
+  }
+  tbody tr:hover{background:#ffffff05;}
+  .driver-select{min-width:110px;}
+  .done-badge{
+    display:inline-block;
+    background:#12331f;
+    color:var(--green);
+    border:1px solid #1f5c3a;
+    padding:3px 9px;
+    border-radius:999px;
+    font-size:.72rem;
+    white-space:nowrap;
+  }
+  .pending-badge{
+    display:inline-block;
+    background:#332312;
+    color:var(--amber);
+    border:1px solid #5c3f1f;
+    padding:3px 9px;
+    border-radius:999px;
+    font-size:.72rem;
+    white-space:nowrap;
+  }
+  .mark-btn{
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--text-dim);
+    padding:5px 10px;
+    border-radius:6px;
+    cursor:pointer;
+    font-size:.78rem;
+  }
+  .mark-btn:hover{border-color:var(--amber-dim);color:var(--amber);}
+  .del-btn{
+    background:transparent;
+    border:none;
+    color:var(--text-dim);
+    cursor:pointer;
+    font-size:1rem;
+    padding:2px 6px;
+  }
+  .del-btn:hover{color:var(--red);}
+  .empty{
+    text-align:center;
+    color:var(--text-dim);
+    padding:30px 0;
+    font-size:.88rem;
+  }
+  .summary{
+    display:flex;
+    gap:16px;
+    flex-wrap:wrap;
+    margin-bottom:16px;
+  }
+  .stat{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 16px;
+    font-size:.78rem;
+    color:var(--text-dim);
+  }
+  .stat b{
+    display:block;
+    font-size:1.1rem;
+    color:var(--text);
+    font-weight:600;
+  }
+  .table-wrap{overflow-x:auto;}
+  .loading{color:var(--text-dim);font-size:.85rem;padding:20px;text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Эвак<span>МСК</span> · Учёт заявок</h1>
+    <span class="status-pill" id="syncStatus">Подключение…</span>
+  </header>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="card">
+    <div class="form-grid">
+      <div>
+        <label>Дата</label>
+        <input id="f_date" type="date">
+      </div>
+      <div>
+        <label>Клиент</label>
+        <input id="f_client" placeholder="Имя / компания">
+      </div>
+      <div>
+        <label>Телефон</label>
+        <input id="f_phone" placeholder="+7...">
+      </div>
+      <div>
+        <label>Откуда</label>
+        <input id="f_from" placeholder="Адрес подачи">
+      </div>
+      <div>
+        <label>Куда</label>
+        <input id="f_to" placeholder="Адрес назначения">
+      </div>
+      <div>
+        <label>Тип услуги</label>
+        <select id="f_type">
+          <option>Эвакуация</option>
+          <option>Манипулятор</option>
+        </select>
+      </div>
+      <div>
+        <label>Авто клиента</label>
+        <input id="f_car" placeholder="Марка, гос. номер">
+      </div>
+      <div>
+        <label>Стоимость</label>
+        <input id="f_price" placeholder="₽">
+      </div>
+      <div>
+        <label>Водитель</label>
+        <select id="f_driver"></select>
+      </div>
+    </div>
+    <div>
+      <label style="margin-top:10px;">Примечание</label>
+      <textarea id="f_note" placeholder="Доп. детали"></textarea>
+    </div>
+    <button class="add-btn" id="addBtn">+ Добавить заявку</button>
+  </div>
+
+  <div class="card table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Дата заявки</th>
+          <th>Добавлено</th>
+          <th>Клиент</th>
+          <th>Маршрут</th>
+          <th>Услуга</th>
+          <th>Стоимость</th>
+          <th>Водитель</th>
+          <th>Статус</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="rows">
+        <tr><td colspan="9" class="loading">Загрузка данных…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Firebase SDK (compat, работает без сборщика прямо в браузере) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+
+<script>
+// === Настройки Firebase проекта ===
+const firebaseConfig = {
+  apiKey: "AIzaSyCG-ahp-EdjMzsN8YvsbYrJE2mwQioG2vA",
+  authDomain: "zayavki-4d402.firebaseapp.com",
+  databaseURL: "https://zayavki-4d402-default-rtdb.firebaseio.com",
+  projectId: "zayavki-4d402",
+  storageBucket: "zayavki-4d402.firebasestorage.app",
+  messagingSenderId: "766964780150",
+  appId: "1:766964780150:web:b86300a9b8e9be4dd4e357",
+  measurementId: "G-W06D6P77QV"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const ordersRef = db.ref('orders');
+
+const DRIVERS = ["Паша","Мири","Фарид","Азиз","Джейхун","Адилет","Рамазан","Элфаг","Анар","Наиль"];
+let orders = [];
+
+const driverSelect = document.getElementById('f_driver');
+DRIVERS.forEach(d=>{
+  const o=document.createElement('option');
+  o.value=d; o.textContent=d;
+  driverSelect.appendChild(o);
+});
+
+function fmtDate(ts){
+  const d = new Date(ts);
+  return d.toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit'}) + ' ' +
+         d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+}
+
+function fmtOrderDate(dateStr){
+  if(!dateStr) return '—';
+  const [y,m,d] = dateStr.split('-');
+  return `${d}.${m}.${y}`;
+}
+
+function setSyncStatus(text, isError){
+  const el = document.getElementById('syncStatus');
+  el.textContent = text;
+  el.style.color = isError ? '#e5484d' : '';
+}
+
+// Живая синхронизация: любое изменение в базе (с любого устройства) мгновенно обновляет экран
+ordersRef.on('value', (snapshot) => {
+  const data = snapshot.val() || {};
+  orders = Object.keys(data).map(id => ({ id, ...data[id] }));
+  render();
+  setSyncStatus('Синхронизировано · общий доступ');
+}, (error) => {
+  setSyncStatus('Ошибка подключения к базе', true);
+  console.error(error);
+});
+
+function render(){
+  const tbody = document.getElementById('rows');
+  const summary = document.getElementById('summary');
+
+  const sorted = [...orders].sort((a,b)=> (b.createdAt||0) - (a.createdAt||0));
+
+  if(sorted.length === 0){
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">Пока нет заявок. Добавьте первую выше.</td></tr>';
+  } else {
+    tbody.innerHTML = sorted.map(o => `
+      <tr>
+        <td>${fmtOrderDate(o.date)}</td>
+        <td>${fmtDate(o.createdAt)}</td>
+        <td>${escapeHtml(o.client) || '—'}${o.phone ? '<br><span style="color:var(--text-dim);font-size:.78rem;">'+escapeHtml(o.phone)+'</span>' : ''}</td>
+        <td>${escapeHtml(o.from) || '—'} → ${escapeHtml(o.to) || '—'}${o.car ? '<br><span style="color:var(--text-dim);font-size:.78rem;">'+escapeHtml(o.car)+'</span>' : ''}</td>
+        <td>${escapeHtml(o.type)}</td>
+        <td>${escapeHtml(o.price) || '—'}</td>
+        <td>
+          <select class="driver-select" onchange="updateDriver('${o.id}', this.value)">
+            <option value="">—</option>
+            ${DRIVERS.map(d => `<option value="${d}" ${o.driver===d?'selected':''}>${d}</option>`).join('')}
+          </select>
+        </td>
+        <td>
+          ${o.done
+            ? `<span class="done-badge">✓ Выполнен</span><div><button class="mark-btn" style="margin-top:4px;" onclick="toggleDone('${o.id}')">Отменить</button></div>`
+            : `<button class="mark-btn" onclick="toggleDone('${o.id}')">Отметить</button>`
+          }
+        </td>
+        <td><button class="del-btn" onclick="deleteOrder('${o.id}')" title="Удалить">✕</button></td>
+      </tr>
+    `).join('');
+  }
+
+  const total = orders.length;
+  const done = orders.filter(o=>o.done).length;
+  const pending = total - done;
+  const byDriver = {};
+  orders.forEach(o=>{ if(o.done && o.driver) byDriver[o.driver] = (byDriver[o.driver]||0)+1; });
+  const topDriver = Object.entries(byDriver).sort((a,b)=>b[1]-a[1])[0];
+
+  summary.innerHTML = `
+    <div class="stat"><b>${total}</b>Всего заявок</div>
+    <div class="stat"><b>${done}</b>Выполнено</div>
+    <div class="stat"><b>${pending}</b>В работе</div>
+    ${topDriver ? `<div class="stat"><b>${topDriver[0]}</b>Лидер по выполненным (${topDriver[1]})</div>` : ''}
+  `;
+}
+
+function escapeHtml(str){
+  if(!str) return '';
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function addOrder(){
+  const date = document.getElementById('f_date').value;
+  const client = document.getElementById('f_client').value.trim();
+  const phone = document.getElementById('f_phone').value.trim();
+  const from = document.getElementById('f_from').value.trim();
+  const to = document.getElementById('f_to').value.trim();
+  const type = document.getElementById('f_type').value;
+  const car = document.getElementById('f_car').value.trim();
+  const price = document.getElementById('f_price').value.trim();
+  const driver = document.getElementById('f_driver').value;
+  const note = document.getElementById('f_note').value.trim();
+
+  if(!client && !from && !to){
+    alert('Заполните хотя бы клиента или маршрут');
+    return;
+  }
+
+  const newRef = ordersRef.push();
+  newRef.set({
+    createdAt: Date.now(),
+    date, client, phone, from, to, type, car, price, driver, note,
+    done: false
+  });
+
+  document.querySelectorAll('.card input, .card textarea').forEach(el => el.value='');
+  document.getElementById('f_type').selectedIndex = 0;
+  document.getElementById('f_driver').selectedIndex = 0;
+  setTodayDate();
+}
+
+function toggleDone(id){
+  const o = orders.find(x=>x.id===id);
+  if(!o) return;
+  if(!o.driver){
+    alert('Сначала выберите водителя для этой заявки');
+    return;
+  }
+  ordersRef.child(id).update({
+    done: !o.done,
+    completedAt: !o.done ? Date.now() : null
+  });
+}
+
+function updateDriver(id, value){
+  ordersRef.child(id).update({ driver: value });
+}
+
+function deleteOrder(id){
+  if(!confirm('Удалить заявку?')) return;
+  ordersRef.child(id).remove();
+}
+
+function setTodayDate(){
+  const today = new Date();
+  const iso = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+  document.getElementById('f_date').value = iso;
+}
+
+document.getElementById('addBtn').addEventListener('click', addOrder);
+setTodayDate();
+</script>
+</body>
+</html>
