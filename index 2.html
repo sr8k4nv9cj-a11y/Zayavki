@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Заявки Эвак МСК</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: журнал в одну колонку — форма ввода сверху, сводка за период, разбивка по водителям, затем таблица заявок */
+:root {
+  --bg: #f2f4f6;
+  --surface: #ffffff;
+  --ink: #14202b;
+  --muted: #5b6977;
+  --line: #d8dfe5;
+  --accent: #f0ae1c;
+  --accent-ink: #1b1400;
+  --bar: #c9d3dc;
+  --danger: #b3321f;
+  --ok: #1f7a4d;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1419; --surface: #162029; --ink: #e7edf2; --muted: #93a1af; --line: #283643;
+    --accent: #f0ae1c; --accent-ink: #1b1400; --bar: #34495a; --danger: #ff8a78; --ok: #5fd39a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1419; --surface: #162029; --ink: #e7edf2; --muted: #93a1af; --line: #283643;
+  --accent: #f0ae1c; --accent-ink: #1b1400; --bar: #34495a; --danger: #ff8a78; --ok: #5fd39a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45; }
+.wrap { max-width: 980px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; display: flex; flex-direction: column; gap: 16px; }
+header { display: flex; flex-direction: column; gap: 10px; }
+.stripe { height: 6px; border-radius: 1px; background: repeating-linear-gradient(-45deg, var(--accent) 0 10px, var(--ink) 10px 20px); }
+h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+.sub { margin: 0; color: var(--muted); }
+h2 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-items: end; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field.wide { grid-column: span 2; }
+@media (max-width: 480px) { .field.wide { grid-column: auto; } }
+label { font-size: 13px; color: var(--muted); }
+input, select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 9px 10px; min-width: 0; width: 100%; }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input.num { font-family: var(--font-num); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; grid-column: 1 / -1; }
+button { font: inherit; cursor: pointer; border-radius: 4px; padding: 9px 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+button.primary:hover { filter: brightness(0.95); }
+button:disabled { opacity: 0.55; cursor: default; }
+button.small { padding: 4px 8px; font-size: 13px; }
+button.danger { color: var(--danger); }
+.msg { min-height: 20px; margin: 0; font-size: 14px; color: var(--danger); }
+.msg.ok { color: var(--ok); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.filters .right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.filters select { width: auto; min-width: 150px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.tile { display: flex; flex-direction: column; gap: 2px; }
+.tile .k { font-size: 13px; color: var(--muted); }
+.tile .v { font-family: var(--font-num); font-size: 24px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.drivers { display: flex; flex-direction: column; gap: 8px; }
+.drow { display: grid; grid-template-columns: minmax(90px, 160px) 1fr auto; gap: 10px; align-items: center; }
+.drow .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drow .track { height: 8px; background: var(--bg); border-radius: 2px; overflow: hidden; }
+.drow .fill { height: 100%; background: var(--bar); }
+.drow .amt { font-family: var(--font-num); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.drow .cnt { color: var(--muted); font-size: 13px; margin-left: 6px; font-family: var(--font-body); }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; }
+th { text-align: left; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.n, th.n { text-align: right; }
+td.mono { font-family: var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.note { color: var(--muted); max-width: 260px; overflow-wrap: anywhere; }
+td.act { white-space: nowrap; text-align: right; }
+td.act button + button { margin-left: 6px; }
+tr.editing td { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.empty { padding: 24px 8px; text-align: center; color: var(--muted); }
+.empty strong { display: block; color: var(--ink); font-weight: 600; margin-bottom: 4px; }
+@media (prefers-reduced-motion: no-preference) { button { transition: border-color .15s, filter .15s; } }
+</style>
+<style>
+html { padding-block: env(safe-area-inset-top, 0px) env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="stripe" aria-hidden="true"></div>
+    <h1>Заявки Эвак МСК</h1>
+    <p class="sub">Кто выполнил, когда, какую заявку и на какую сумму.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="form-title">
+    <h2 id="form-title">Новая заявка</h2>
+    <form id="f" autocomplete="off">
+      <div class="field"><label for="f-num">№ заявки</label><input id="f-num" class="num" type="text" required></div>
+      <div class="field"><label for="f-at">Дата и время выполнения</label><input id="f-at" type="datetime-local" required></div>
+      <div class="field"><label for="f-driver">Водитель</label><input id="f-driver" type="text" list="drivers-list" required><datalist id="drivers-list"></datalist></div>
+      <div class="field"><label for="f-amount">Сумма, ₽</label><input id="f-amount" class="num" type="number" inputmode="numeric" min="0" step="1" required></div>
+      <div class="field wide"><label for="f-note">Маршрут или комментарий</label><input id="f-note" type="text"></div>
+      <div class="actions">
+        <button id="f-save" class="primary" type="submit">Добавить заявку</button>
+        <button id="f-cancel" type="button" hidden>Отменить изменение</button>
+      </div>
+    </form>
+    <p id="msg" class="msg" role="status"></p>
+  </section>
+
+  <section class="panel" aria-labelledby="sum-title">
+    <h2 id="sum-title">Итоги</h2>
+    <div class="filters">
+      <div class="seg" id="period" role="group" aria-label="Период">
+        <button type="button" data-p="today" aria-pressed="false">Сегодня</button>
+        <button type="button" data-p="week" aria-pressed="false">7 дней</button>
+        <button type="button" data-p="month" aria-pressed="true">Месяц</button>
+        <button type="button" data-p="all" aria-pressed="false">Всё время</button>
+      </div>
+      <div class="right">
+        <label for="drv-filter" class="sr" style="position:absolute;left:-9999px">Водитель</label>
+        <select id="drv-filter"><option value="">Все водители</option></select>
+        <button id="csv" type="button">Скачать CSV</button>
+      </div>
+    </div>
+    <div class="tiles">
+      <div class="tile"><span class="k">Сумма</span><span class="v" id="t-sum">0 ₽</span></div>
+      <div class="tile"><span class="k">Заявок</span><span class="v" id="t-cnt">0</span></div>
+      <div class="tile"><span class="k">Средняя сумма</span><span class="v" id="t-avg">0 ₽</span></div>
+    </div>
+    <div class="drivers" id="by-driver"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="list-title">
+    <h2 id="list-title">Заявки</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Дата и время</th><th>№ заявки</th><th>Водитель</th><th>Комментарий</th><th class="n">Сумма</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div id="empty" class="empty" hidden></div>
+  </section>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script>
+(function () {
+  var firebaseConfig = {
+    apiKey: "AIzaSyCG-ahp-EdjMzsN8YvsbYrJE2mwQioG2vA",
+    authDomain: "zayavki-4d402.firebaseapp.com",
+    databaseURL: "https://zayavki-4d402-default-rtdb.firebaseio.com",
+    projectId: "zayavki-4d402",
+    storageBucket: "zayavki-4d402.firebasestorage.app",
+    messagingSenderId: "766964780150",
+    appId: "1:766964780150:web:b86300a9b8e9be4dd4e357",
+    measurementId: "G-W06D6P77QV"
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const fmt = new Intl.NumberFormat('ru-RU');
+  const money = (n) => fmt.format(Math.round(n)) + ' ₽';
+  const pad = (n) => String(n).padStart(2, '0');
+  const nowLocal = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const dayStr = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const showAt = (s) => s && s.length >= 16 ? `${s.slice(8,10)}.${s.slice(5,7)}.${s.slice(0,4)} ${s.slice(11,16)}` : (s || '');
+
+  let ref = null, orders = [], loaded = false, failed = false;
+  let editing = null, period = 'month', drvFilter = '', busy = false, delArm = null, delTimer = null;
+
+  const msg = (t, ok) => { const m = $('msg'); m.textContent = t || ''; m.className = 'msg' + (ok ? ' ok' : ''); };
+  const withTimeout = (p) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), 10000))]);
+
+  try {
+    firebase.initializeApp(firebaseConfig);
+    ref = firebase.database().ref('journal/orders');
+  } catch (e) { failed = true; }
+
+  $('f-at').value = nowLocal();
+
+  function inPeriod(o) {
+    const at = o.at || '';
+    const now = new Date(), today = dayStr(now);
+    if (period === 'today') return at.slice(0, 10) === today;
+    if (period === 'week') { const d = new Date(now); d.setDate(d.getDate() - 6); return at.slice(0, 10) >= dayStr(d); }
+    if (period === 'month') return at.slice(0, 7) === today.slice(0, 7);
+    return true;
+  }
+
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+  function render() {
+    const names = [...new Set(orders.map(o => o.driver).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru'));
+    const dl = $('drivers-list'); dl.textContent = '';
+    names.forEach(n => { const o = el('option'); o.value = n; dl.appendChild(o); });
+    if (drvFilter && !names.includes(drvFilter)) drvFilter = '';
+    const sel = $('drv-filter'); sel.textContent = '';
+    const all = el('option', null, 'Все водители'); all.value = ''; sel.appendChild(all);
+    names.forEach(n => { const o = el('option', null, n); o.value = n; sel.appendChild(o); });
+    sel.value = drvFilter;
+
+    const list = orders.filter(o => inPeriod(o) && (!drvFilter || o.driver === drvFilter))
+      .sort((a, b) => (b.at || '').localeCompare(a.at || ''));
+    const sum = list.reduce((s, o) => s + (Number(o.amount) || 0), 0);
+    $('t-sum').textContent = money(sum);
+    $('t-cnt').textContent = fmt.format(list.length);
+    $('t-avg').textContent = money(list.length ? sum / list.length : 0);
+
+    const agg = {};
+    list.forEach(o => { const k = o.driver || '—'; (agg[k] = agg[k] || { sum: 0, cnt: 0 }); agg[k].sum += Number(o.amount) || 0; agg[k].cnt++; });
+    const rowsD = Object.entries(agg).sort((a, b) => b[1].sum - a[1].sum);
+    const max = rowsD.length ? Math.max(...rowsD.map(r => r[1].sum), 1) : 1;
+    const bd = $('by-driver'); bd.textContent = '';
+    rowsD.forEach(([name, v]) => {
+      const r = el('div', 'drow');
+      r.appendChild(el('span', 'name', name));
+      const tr = el('div', 'track'); const f = el('div', 'fill'); f.style.width = Math.max(2, (v.sum / max) * 100) + '%'; tr.appendChild(f); r.appendChild(tr);
+      const a = el('span', 'amt', money(v.sum)); a.appendChild(el('span', 'cnt', `· ${v.cnt}`)); r.appendChild(a);
+      bd.appendChild(r);
+    });
+
+    const tb = $('rows'); tb.textContent = '';
+    list.forEach(o => {
+      const tr = el('tr', editing === o.id ? 'editing' : '');
+      tr.appendChild(el('td', 'mono', showAt(o.at)));
+      tr.appendChild(el('td', 'mono', o.num || ''));
+      tr.appendChild(el('td', null, o.driver || ''));
+      tr.appendChild(el('td', 'note', o.note || ''));
+      tr.appendChild(el('td', 'n mono', money(Number(o.amount) || 0)));
+      const td = el('td', 'act');
+      const eb = el('button', 'small', 'Изменить'); eb.type = 'button'; eb.addEventListener('click', () => startEdit(o.id));
+      const armed = delArm === o.id;
+      const db_ = el('button', 'small danger', armed ? 'Точно удалить?' : 'Удалить'); db_.type = 'button'; db_.addEventListener('click', () => onDelete(o.id));
+      td.appendChild(eb); td.appendChild(db_); tr.appendChild(td);
+      tb.appendChild(tr);
+    });
+    const em = $('empty');
+    const note = (a, b) => { em.hidden = false; em.textContent = ''; em.appendChild(el('strong', null, a)); em.appendChild(document.createTextNode(b)); };
+    if (failed) note('Нет связи с базой', 'Обновите страницу. Если не помогло, проверьте интернет.');
+    else if (!loaded) note('Загрузка…', 'Заявки подгружаются из базы.');
+    else if (!orders.length) note('Заявок пока нет', 'Заполните форму выше и нажмите «Добавить заявку».');
+    else if (!list.length) note('За выбранный период заявок нет', 'Выберите другой период или водителя.');
+    else em.hidden = true;
+  }
+
+  function resetForm(keepDriver) {
+    editing = null;
+    const d = $('f-driver').value;
+    $('f').reset();
+    $('f-at').value = nowLocal();
+    if (keepDriver) $('f-driver').value = d;
+    $('f-save').textContent = 'Добавить заявку';
+    $('f-cancel').hidden = true;
+    $('form-title').textContent = 'Новая заявка';
+  }
+
+  function startEdit(id) {
+    const o = orders.find(x => x.id === id); if (!o) return;
+    editing = id; msg('');
+    $('f-num').value = o.num || ''; $('f-at').value = o.at || nowLocal(); $('f-driver').value = o.driver || '';
+    $('f-amount').value = o.amount != null ? o.amount : ''; $('f-note').value = o.note || '';
+    $('f-save').textContent = 'Сохранить изменения'; $('f-cancel').hidden = false;
+    $('form-title').textContent = 'Изменение заявки';
+    $('f-num').scrollIntoView({ block: 'center' });
+    render();
+  }
+
+  function errText(e) {
+    const c = e && e.code;
+    if (c === 'timeout') return 'Нет связи. Заявка отправится, когда появится интернет. Не вносите её повторно.';
+    if (c === 'PERMISSION_DENIED' || c === 'permission_denied') return 'Нет доступа к базе. Проверьте правила Realtime Database.';
+    return 'Не удалось сохранить. Проверьте соединение и повторите.';
+  }
+
+  $('f').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    if (!ref) { msg('Нет связи с базой. Обновите страницу.'); return; }
+    const num = $('f-num').value.trim(), at = $('f-at').value, driver = $('f-driver').value.trim().replace(/\s+/g, ' ');
+    const amount = Number($('f-amount').value), note = $('f-note').value.trim();
+    if (!num || !at || !driver || !Number.isFinite(amount) || $('f-amount').value === '') { msg('Заполните номер, время, водителя и сумму.'); return; }
+    if (orders.some(o => o.num === num && o.id !== editing)) { msg(`Заявка № ${num} уже есть в журнале.`); return; }
+    busy = true; $('f-save').disabled = true; msg('');
+    try {
+      if (editing) {
+        const old = orders.find(x => x.id === editing);
+        await withTimeout(ref.child(editing).set({ num, at, driver, note, amount, created: (old && old.created) || new Date().toISOString() }));
+        msg(`Заявка № ${num} обновлена.`, true);
+        resetForm(true);
+      } else {
+        await withTimeout(ref.push({ num, at, driver, note, amount, created: new Date().toISOString() }));
+        msg(`Заявка № ${num} добавлена.`, true);
+        const d = $('f-driver').value; resetForm(false); $('f-driver').value = d;
+        $('f-num').focus();
+      }
+    } catch (err) { msg(errText(err)); }
+    finally { busy = false; $('f-save').disabled = false; }
+  });
+
+  $('f-cancel').addEventListener('click', () => { resetForm(false); msg(''); render(); });
+
+  async function onDelete(id) {
+    if (!ref || busy) return;
+    if (delArm !== id) {
+      delArm = id; clearTimeout(delTimer); delTimer = setTimeout(() => { delArm = null; render(); }, 4000); render(); return;
+    }
+    clearTimeout(delTimer); delArm = null; busy = true;
+    try {
+      await withTimeout(ref.child(id).remove());
+      if (editing === id) resetForm(false);
+      msg('Заявка удалена.', true);
+    } catch (err) { msg(errText(err)); }
+    finally { busy = false; render(); }
+  }
+
+  $('period').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-p]'); if (!b) return;
+    period = b.dataset.p;
+    $('period').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    render();
+  });
+  $('drv-filter').addEventListener('change', (e) => { drvFilter = e.target.value; render(); });
+
+  $('csv').addEventListener('click', () => {
+    const list = orders.filter(o => inPeriod(o) && (!drvFilter || o.driver === drvFilter)).sort((a, b) => (a.at || '').localeCompare(b.at || ''));
+    if (!list.length) { msg('Нет заявок для выгрузки.'); return; }
+    const q = (s) => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
+    const lines = [['Дата', 'Время', '№ заявки', 'Водитель', 'Комментарий', 'Сумма'].map(q).join(';')];
+    list.forEach(o => lines.push([(o.at || '').slice(0, 10).split('-').reverse().join('.'), (o.at || '').slice(11, 16), o.num, o.driver, o.note, o.amount].map(q).join(';')));
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `zayavki-${dayStr(new Date())}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    msg('Файл готов.', true);
+  });
+
+  render();
+  if (ref) {
+    ref.on('value', (snap) => {
+      const v = snap.val() || {};
+      orders = Object.keys(v).map(k => Object.assign({ id: k }, v[k]));
+      loaded = true; failed = false;
+      render();
+    }, (err) => { failed = true; msg(errText(err)); render(); });
+  }
+})();
+</script>
+</body>
+</html>
