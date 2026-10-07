@@ -128,6 +128,7 @@ body { margin: 0; }
     <div class="filters">
       <div class="seg" id="period" role="group" aria-label="Период">
         <button type="button" data-p="today" aria-pressed="false">Сегодня</button>
+        <button type="button" data-p="yesterday" aria-pressed="false">Вчера</button>
         <button type="button" data-p="week" aria-pressed="false">7 дней</button>
         <button type="button" data-p="month" aria-pressed="true">Месяц</button>
         <button type="button" data-p="all" aria-pressed="false">Всё время</button>
@@ -198,6 +199,7 @@ body { margin: 0; }
     const at = o.at || '';
     const now = new Date(), today = dayStr(now);
     if (period === 'today') return at.slice(0, 10) === today;
+    if (period === 'yesterday') { const y = new Date(now); y.setDate(y.getDate() - 1); return at.slice(0, 10) === dayStr(y); }
     if (period === 'week') { const d = new Date(now); d.setDate(d.getDate() - 6); return at.slice(0, 10) >= dayStr(d); }
     if (period === 'month') return at.slice(0, 7) === today.slice(0, 7);
     return true;
