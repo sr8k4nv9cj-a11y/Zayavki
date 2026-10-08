@@ -90,6 +90,7 @@ td.note { color: var(--muted); max-width: 260px; overflow-wrap: anywhere; }
 td.act { white-space: nowrap; text-align: right; }
 td.act button + button { margin-left: 6px; }
 tr.editing td { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.kind { font-family: var(--font-body); font-size: 12px; color: var(--muted); }
 .empty { padding: 24px 8px; text-align: center; color: var(--muted); }
 .empty strong { display: block; color: var(--ink); font-weight: 600; margin-bottom: 4px; }
 @media (prefers-reduced-motion: no-preference) { button { transition: border-color .15s, filter .15s; } }
@@ -114,6 +115,7 @@ body { margin: 0; }
       <div class="field"><label for="f-at">Дата и время выполнения</label><input id="f-at" type="datetime-local" required></div>
       <div class="field"><label for="f-driver">Водитель</label><input id="f-driver" type="text" list="drivers-list" required><datalist id="drivers-list"></datalist></div>
       <div class="field"><label for="f-amount">Сумма, ₽</label><input id="f-amount" class="num" type="number" inputmode="numeric" min="0" step="1" required></div>
+      <div class="field"><label for="f-kind">Тип суммы</label><select id="f-kind" required><option value="" selected disabled>Выберите</option><option value="gross">Грязными</option><option value="net">Чистыми</option></select></div>
       <div class="field"><label for="f-pay">Оплата</label><select id="f-pay" required><option value="" selected disabled>Выберите</option><option value="cash">Наличные</option><option value="card">Безнал</option></select></div>
       <div class="field wide"><label for="f-note">Маршрут или комментарий</label><input id="f-note" type="text"></div>
       <div class="actions">
@@ -137,6 +139,7 @@ body { margin: 0; }
       <div class="right">
         <label for="drv-filter" class="sr" style="position:absolute;left:-9999px">Водитель</label>
         <select id="drv-filter"><option value="">Все водители</option></select>
+        <select id="pay-filter" aria-label="Оплата"><option value="">Любая оплата</option><option value="cash">Наличные</option><option value="card">Безнал</option></select>
         <button id="csv" type="button">Скачать CSV</button>
       </div>
     </div>
@@ -146,6 +149,8 @@ body { margin: 0; }
       <div class="tile"><span class="k">Средняя сумма</span><span class="v" id="t-avg">0 ₽</span></div>
       <div class="tile"><span class="k">Наличные</span><span class="v" id="t-cash">0 ₽</span></div>
       <div class="tile"><span class="k">Безнал</span><span class="v" id="t-card">0 ₽</span></div>
+      <div class="tile"><span class="k">Грязными</span><span class="v" id="t-gross">0 ₽</span></div>
+      <div class="tile"><span class="k">Чистыми</span><span class="v" id="t-net">0 ₽</span></div>
     </div>
     <div class="drivers" id="by-driver"></div>
   </section>
@@ -186,7 +191,7 @@ body { margin: 0; }
   const showAt = (s) => s && s.length >= 16 ? `${s.slice(8,10)}.${s.slice(5,7)}.${s.slice(0,4)} ${s.slice(11,16)}` : (s || '');
 
   let ref = null, orders = [], loaded = false, failed = false;
-  let editing = null, period = 'month', drvFilter = '', busy = false, delArm = null, delTimer = null;
+  let editing = null, period = 'month', drvFilter = '', payFilter = '', busy = false, delArm = null, delTimer = null;
 
   const msg = (t, ok) => { const m = $('msg'); m.textContent = t || ''; m.className = 'msg' + (ok ? ' ok' : ''); };
   const withTimeout = (p) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), 10000))]);
@@ -209,6 +214,7 @@ body { margin: 0; }
   }
 
   const payLabel = (p) => p === 'cash' ? 'Наличные' : p === 'card' ? 'Безнал' : '—';
+  const kindLabel = (k) => k === 'gross' ? 'Грязными' : k === 'net' ? 'Чистыми' : '';
   function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 
   function render() {
@@ -221,7 +227,7 @@ body { margin: 0; }
     names.forEach(n => { const o = el('option', null, n); o.value = n; sel.appendChild(o); });
     sel.value = drvFilter;
 
-    const list = orders.filter(o => inPeriod(o) && (!drvFilter || o.driver === drvFilter))
+    const list = orders.filter(o => inPeriod(o) && (!drvFilter || o.driver === drvFilter) && (!payFilter || o.pay === payFilter))
       .sort((a, b) => (b.at || '').localeCompare(a.at || ''));
     const sum = list.reduce((s, o) => s + (Number(o.amount) || 0), 0);
     $('t-sum').textContent = money(sum);
@@ -230,6 +236,9 @@ body { margin: 0; }
     const paySum = (p) => list.filter(o => o.pay === p).reduce((s, o) => s + (Number(o.amount) || 0), 0);
     $('t-cash').textContent = money(paySum('cash'));
     $('t-card').textContent = money(paySum('card'));
+    const kindSum = (k) => list.filter(o => o.kind === k).reduce((s, o) => s + (Number(o.amount) || 0), 0);
+    $('t-gross').textContent = money(kindSum('gross'));
+    $('t-net').textContent = money(kindSum('net'));
 
     const agg = {};
     list.forEach(o => { const k = o.driver || '—'; (agg[k] = agg[k] || { sum: 0, cnt: 0 }); agg[k].sum += Number(o.amount) || 0; agg[k].cnt++; });
@@ -252,7 +261,9 @@ body { margin: 0; }
       tr.appendChild(el('td', null, o.driver || ''));
       tr.appendChild(el('td', 'note', o.note || ''));
       tr.appendChild(el('td', null, payLabel(o.pay)));
-      tr.appendChild(el('td', 'n mono', money(Number(o.amount) || 0)));
+      const tdA = el('td', 'n mono', money(Number(o.amount) || 0));
+      if (kindLabel(o.kind)) tdA.appendChild(el('div', 'kind', kindLabel(o.kind)));
+      tr.appendChild(tdA);
       const td = el('td', 'act');
       const eb = el('button', 'small', 'Изменить'); eb.type = 'button'; eb.addEventListener('click', () => startEdit(o.id));
       const armed = delArm === o.id;
@@ -284,7 +295,7 @@ body { margin: 0; }
     const o = orders.find(x => x.id === id); if (!o) return;
     editing = id; msg('');
     $('f-num').value = o.num || ''; $('f-at').value = o.at || nowLocal(); $('f-driver').value = o.driver || '';
-    $('f-amount').value = o.amount != null ? o.amount : ''; $('f-pay').value = o.pay || ''; $('f-note').value = o.note || '';
+    $('f-amount').value = o.amount != null ? o.amount : ''; $('f-pay').value = o.pay || ''; $('f-kind').value = o.kind || ''; $('f-note').value = o.note || '';
     $('f-save').textContent = 'Сохранить изменения'; $('f-cancel').hidden = false;
     $('form-title').textContent = 'Изменение заявки';
     $('f-num').scrollIntoView({ block: 'center' });
@@ -303,18 +314,18 @@ body { margin: 0; }
     if (busy) return;
     if (!ref) { msg('Нет связи с базой. Обновите страницу.'); return; }
     const num = $('f-num').value.trim(), at = $('f-at').value, driver = $('f-driver').value.trim().replace(/\s+/g, ' ');
-    const amount = Number($('f-amount').value), note = $('f-note').value.trim(), pay = $('f-pay').value;
-    if (!num || !at || !driver || !Number.isFinite(amount) || $('f-amount').value === '' || !pay) { msg('Заполните номер, время, водителя, сумму и способ оплаты.'); return; }
+    const amount = Number($('f-amount').value), note = $('f-note').value.trim(), pay = $('f-pay').value, kind = $('f-kind').value;
+    if (!num || !at || !driver || !Number.isFinite(amount) || $('f-amount').value === '' || !pay || !kind) { msg('Заполните номер, время, водителя, сумму, тип суммы и способ оплаты.'); return; }
     if (orders.some(o => o.num === num && o.id !== editing)) { msg(`Заявка № ${num} уже есть в журнале.`); return; }
     busy = true; $('f-save').disabled = true; msg('');
     try {
       if (editing) {
         const old = orders.find(x => x.id === editing);
-        await withTimeout(ref.child(editing).set({ num, at, driver, note, amount, pay, created: (old && old.created) || new Date().toISOString() }));
+        await withTimeout(ref.child(editing).set({ num, at, driver, note, amount, pay, kind, created: (old && old.created) || new Date().toISOString() }));
         msg(`Заявка № ${num} обновлена.`, true);
         resetForm(true);
       } else {
-        await withTimeout(ref.push({ num, at, driver, note, amount, pay, created: new Date().toISOString() }));
+        await withTimeout(ref.push({ num, at, driver, note, amount, pay, kind, created: new Date().toISOString() }));
         msg(`Заявка № ${num} добавлена.`, true);
         const d = $('f-driver').value; resetForm(false); $('f-driver').value = d;
         $('f-num').focus();
@@ -346,13 +357,14 @@ body { margin: 0; }
     render();
   });
   $('drv-filter').addEventListener('change', (e) => { drvFilter = e.target.value; render(); });
+  $('pay-filter').addEventListener('change', (e) => { payFilter = e.target.value; render(); });
 
   $('csv').addEventListener('click', () => {
-    const list = orders.filter(o => inPeriod(o) && (!drvFilter || o.driver === drvFilter)).sort((a, b) => (a.at || '').localeCompare(b.at || ''));
+    const list = orders.filter(o => inPeriod(o) && (!drvFilter || o.driver === drvFilter) && (!payFilter || o.pay === payFilter)).sort((a, b) => (a.at || '').localeCompare(b.at || ''));
     if (!list.length) { msg('Нет заявок для выгрузки.'); return; }
     const q = (s) => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
-    const lines = [['Дата', 'Время', '№ заявки', 'Водитель', 'Комментарий', 'Оплата', 'Сумма'].map(q).join(';')];
-    list.forEach(o => lines.push([(o.at || '').slice(0, 10).split('-').reverse().join('.'), (o.at || '').slice(11, 16), o.num, o.driver, o.note, payLabel(o.pay), o.amount].map(q).join(';')));
+    const lines = [['Дата', 'Время', '№ заявки', 'Водитель', 'Комментарий', 'Оплата', 'Тип суммы', 'Сумма'].map(q).join(';')];
+    list.forEach(o => lines.push([(o.at || '').slice(0, 10).split('-').reverse().join('.'), (o.at || '').slice(11, 16), o.num, o.driver, o.note, payLabel(o.pay), kindLabel(o.kind), o.amount].map(q).join(';')));
     const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = `zayavki-${dayStr(new Date())}.csv`;
