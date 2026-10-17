@@ -67,6 +67,8 @@ button.danger { color: var(--danger); }
 .seg { display: flex; flex-wrap: wrap; gap: 6px; }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .filters .right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.seg input[type="date"] { width: auto; padding: 5px 8px; font-family: var(--font-num); }
+.seg input[type="date"].on { border-color: var(--ink); background: var(--surface); }
 .filters select { width: auto; min-width: 150px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .tile { display: flex; flex-direction: column; gap: 2px; }
@@ -135,6 +137,7 @@ body { margin: 0; }
         <button type="button" data-p="week" aria-pressed="false">7 дней</button>
         <button type="button" data-p="month" aria-pressed="true">Месяц</button>
         <button type="button" data-p="all" aria-pressed="false">Всё время</button>
+        <input type="date" id="pick-date" aria-label="Выбрать дату">
       </div>
       <div class="right">
         <label for="drv-filter" class="sr" style="position:absolute;left:-9999px">Водитель</label>
@@ -191,7 +194,7 @@ body { margin: 0; }
   const showAt = (s) => s && s.length >= 16 ? `${s.slice(8,10)}.${s.slice(5,7)}.${s.slice(0,4)} ${s.slice(11,16)}` : (s || '');
 
   let ref = null, orders = [], loaded = false, failed = false;
-  let editing = null, period = 'month', drvFilter = '', payFilter = '', busy = false, delArm = null, delTimer = null;
+  let editing = null, period = 'month', drvFilter = '', payFilter = '', pickDate = '', busy = false, delArm = null, delTimer = null;
 
   const msg = (t, ok) => { const m = $('msg'); m.textContent = t || ''; m.className = 'msg' + (ok ? ' ok' : ''); };
   const withTimeout = (p) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), 10000))]);
@@ -206,6 +209,7 @@ body { margin: 0; }
   function inPeriod(o) {
     const at = o.at || '';
     const now = new Date(), today = dayStr(now);
+    if (period === 'date') return !pickDate || at.slice(0, 10) === pickDate;
     if (period === 'today') return at.slice(0, 10) === today;
     if (period === 'yesterday') { const y = new Date(now); y.setDate(y.getDate() - 1); return at.slice(0, 10) === dayStr(y); }
     if (period === 'week') { const d = new Date(now); d.setDate(d.getDate() - 6); return at.slice(0, 10) >= dayStr(d); }
@@ -352,12 +356,19 @@ body { margin: 0; }
 
   $('period').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-p]'); if (!b) return;
-    period = b.dataset.p;
+    period = b.dataset.p; pickDate = ''; $('pick-date').value = ''; $('pick-date').classList.remove('on');
     $('period').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     render();
   });
   $('drv-filter').addEventListener('change', (e) => { drvFilter = e.target.value; render(); });
   $('pay-filter').addEventListener('change', (e) => { payFilter = e.target.value; render(); });
+  $('pick-date').addEventListener('change', (e) => {
+    pickDate = e.target.value;
+    period = pickDate ? 'date' : 'month';
+    e.target.classList.toggle('on', !!pickDate);
+    $('period').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(!pickDate && x.dataset.p === 'month')));
+    render();
+  });
 
   $('csv').addEventListener('click', () => {
     const list = orders.filter(o => inPeriod(o) && (!drvFilter || o.driver === drvFilter) && (!payFilter || o.pay === payFilter)).sort((a, b) => (a.at || '').localeCompare(b.at || ''));
